@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Guessing Game</title>
+  <style>
+    :root {
+      --blue: #1c7ed6;  --blue-dark: #1864ab;  --blue-light: #e7f5ff;
+      --orange: #f76707; --orange-dark: #d9480f; --orange-light: #fff4e6;
+      --green: #2f9e44; --green-dark: #2b8a3e; --green-light: #ebfbee;
+      --ink: #1d2433;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif; margin: 0; color: var(--ink);
+      background: linear-gradient(135deg, #d0ebff 0%, #fff4e6 50%, #d3f9d8 100%) fixed;
+      overflow: hidden;
+    }
+    .hidden { display: none !important; }
+    h1, h3 { margin-top: 0; }
+    input, button { font-size: 15px; padding: 9px 12px; border-radius: 10px; border: 2px solid #ced4da; font-family: inherit; }
+    input { width: 100%; background: #fff; }
+    input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(28,126,214,.2); }
+    button { border: none; color: #fff; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-blue   { background: linear-gradient(135deg, var(--blue), var(--blue-dark)); }
+    .btn-orange { background: linear-gradient(135deg, #ff922b, var(--orange-dark)); }
+    .btn-green  { background: linear-gradient(135deg, #51cf66, var(--green-dark)); }
+    .error { color: #c92a2a; min-height: 20px; margin: 4px 0; font-weight: 600; }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+
+    /* join screen */
+    #joinScreen { height: 100vh; height: 100dvh; overflow-y: auto; padding: 12px; }
+    .join-card { max-width: 440px; margin: 6vh auto; background: #fff; border-radius: 18px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+    .join-top { padding: 22px; color: #fff; background: linear-gradient(135deg, var(--blue), var(--green) 60%, var(--orange)); }
+    .join-top h1 { margin: 0; font-size: 30px; }
+    .join-top p { margin: 4px 0 0; opacity: .95; }
+    .join-body { padding: 20px; }
+    .join-body input { margin-bottom: 8px; }
+
+    /* game screen: exactly as tall as the window, nothing scrolls except the chat */
+    #gameScreen {
+      height: 100vh; height: 100dvh;
+      max-width: 1200px; margin: 0 auto; padding: 10px 12px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .topbar {
+      flex: 0 0 auto;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+      padding: 10px 16px; border-radius: 14px; color: #fff;
+      background: linear-gradient(135deg, var(--blue-dark), var(--blue));
+      box-shadow: 0 4px 14px rgba(24,100,171,.35);
+    }
+    .pill { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 700; background: rgba(255,255,255,.22); }
+    .pill.code { background: var(--orange); letter-spacing: 2px; }
+    .pill.status-lobby { background: var(--green); }
+    .pill.status-playing { background: var(--orange); }
+    #timerText { background: var(--orange); font-size: 17px; }
+    #timerText:empty { display: none; }
+    #timerText.urgent { background: #e03131; animation: pulse .8s infinite; }
+    @keyframes pulse { 50% { transform: scale(1.08); } }
+
+    .layout { flex: 1 1 auto; min-height: 0; display: flex; gap: 10px; align-items: stretch; }
+    aside { flex: 0 0 300px; display: flex; flex-direction: column; min-height: 0; }
+    main  { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+    .panel { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,.1); }
+    .panel-head { flex: 0 0 auto; padding: 10px 16px; color: #fff; font-weight: 800; font-size: 16px; letter-spacing: .5px; }
+    .panel-head.green  { background: linear-gradient(135deg, #51cf66, var(--green-dark)); }
+    .panel-head.orange { background: linear-gradient(135deg, #ff922b, var(--orange-dark)); }
+    .panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px 12px; }
+
+    /* leaderboard table */
+    table.board { width: 100%; border-collapse: separate; border-spacing: 0 5px; }
+    table.board th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #868e96; padding: 0 10px; }
+    table.board th.num, table.board td.num { text-align: right; }
+    table.board td { background: #f8f9fa; padding: 8px 10px; }
+    table.board td:first-child { border-radius: 10px 0 0 10px; width: 34px; font-weight: 800; color: #868e96; text-align: center; }
+    table.board td:last-child  { border-radius: 0 10px 10px 0; }
+    table.board tr.first td { background: var(--orange-light); }
+    table.board tr.me td { box-shadow: inset 0 2px 0 var(--blue), inset 0 -2px 0 var(--blue); }
+    .pname { font-family: 'Trebuchet MS', 'Segoe UI', sans-serif; font-weight: 800; font-size: 16px; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; margin-left: 6px; color: #fff; vertical-align: middle; }
+    .tag.gm { background: var(--orange); }
+    .tag.you { background: var(--blue); }
+    .pscore {
+      display: inline-block; min-width: 52px; text-align: center; padding: 3px 10px; border-radius: 999px;
+      font-family: 'Courier New', monospace; font-weight: 900; font-size: 17px; color: #fff; background: #868e96;
+    }
+    .pscore.s1 { background: var(--orange); }
+    .pscore.s2 { background: var(--blue); }
+    .pscore.s3 { background: var(--green); }
+
+    /* question banner and chat */
+    #questionBox {
+      flex: 0 0 auto;
+      padding: 8px 14px; margin: 10px 12px 0; border-radius: 12px; color: #fff; font-size: 17px; font-weight: 700;
+      background: linear-gradient(135deg, var(--green), var(--blue));
+    }
+    #questionBox small { display: block; font-size: 11px; letter-spacing: 2px; opacity: .9; }
+    #messages { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-top: 10px; padding: 12px; background: #f1f3f5; }
+
+    /* one card per game master */
+    .round { border-radius: 14px; overflow: hidden; margin-bottom: 14px; background: #fff; border: 3px solid var(--rc); box-shadow: 0 3px 10px rgba(0,0,0,.08); }
+    .round.c0 { --rc: var(--green);  --rd: var(--green-dark);  --rt: var(--green-light); }
+    .round.c1 { --rc: var(--blue);   --rd: var(--blue-dark);   --rt: var(--blue-light); }
+    .round.c2 { --rc: var(--orange); --rd: var(--orange-dark); --rt: var(--orange-light); }
+    .round-head { padding: 7px 14px; color: #fff; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; background: linear-gradient(90deg, var(--rc), var(--rd)); }
+    .round-body { padding: 8px 12px; background: var(--rt); display: flex; flex-direction: column; }
+
+    .sys { align-self: center; margin: 3px 0; text-align: center; }
+    .sys span { display: inline-block; background: #fff; color: #495057; padding: 3px 12px; border-radius: 999px; font-size: 14px; border: 1px dashed #adb5bd; }
+    .result { align-self: stretch; margin: 8px 0 3px; padding: 12px; border-radius: 12px; text-align: center; font-size: 17px; font-weight: 800; color: #fff; }
+    .result.win { background: linear-gradient(135deg, #51cf66, var(--green-dark)); }
+    .result.timeout { background: linear-gradient(135deg, #ff922b, var(--orange-dark)); }
+
+    .msg { display: flex; flex-direction: column; margin: 5px 0; max-width: 85%; }
+    .msg.other { align-self: flex-start; }
+    .msg.mine  { align-self: flex-end; align-items: flex-end; }
+    .meta { font-size: 13px; margin-bottom: 2px; }
+    .meta strong { font-family: 'Trebuchet MS', 'Segoe UI', sans-serif; }
+    .bubble { padding: 7px 12px; border-radius: 14px; background: #fff; border: 1px solid #ced4da; word-wrap: break-word; }
+    .msg.mine .bubble  { background: #d0ebff; border-color: #74c0fc; }
+    .msg.guess .bubble { background: #d3f9d8; border-color: #69db7c; }
+    .tag.guess { background: var(--green); }
+    .msg.gm { max-width: 100%; align-self: stretch; }
+    .msg.gm .bubble { background: var(--orange-light); border: 2px solid var(--orange); font-weight: 700; font-size: 16px; box-shadow: 0 2px 8px rgba(247,103,7,.25); }
+
+    /* game master panel (compact) */
+    #masterPanel { flex: 0 0 auto; margin: 10px 12px 0; padding: 10px 12px; border-radius: 12px; background: var(--orange-light); border: 2px dashed var(--orange); }
+    .mp-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+    .mp-head strong { color: var(--orange-dark); }
+    #masterNote { color: #495057; font-weight: 600; font-size: 13px; }
+    .mp-grid { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px; }
+
+    #infoText { flex: 0 0 auto; margin: 8px 14px 0; color: var(--blue-dark); font-weight: 800; min-height: 20px; }
+    #chatForm { flex: 0 0 auto; display: flex; gap: 8px; padding: 8px 12px 12px; }
+    #chatForm button { flex: 0 0 96px; }
+
+    /* narrow screens: stack the leaderboard above the chat */
+    @media (max-width: 800px) {
+      .layout { flex-direction: column; }
+      aside { flex: 0 0 auto; max-height: 26vh; }
+      .mp-grid { grid-template-columns: 1fr 1fr; }
+      .mp-grid input { grid-column: span 2; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- create or join screen -->
+  <div id="joinScreen">
+    <div class="join-card">
+      <div class="join-top">
+        <h1>Guessing Game</h1>
+        <p>Play live with friends</p>
+      </div>
+      <div class="join-body">
+        <input id="nameInput" maxlength="20" placeholder="Your name" autocomplete="off" />
+        <button id="createBtn" class="btn-orange" style="width:100%">Start a new session (be the game master)</button>
+        <p style="text-align:center; color:#868e96; font-weight:700">OR</p>
+        <div class="row">
+          <input id="codeInput" maxlength="5" placeholder="Session code" autocomplete="off" />
+          <button id="joinBtn" class="btn-blue" style="flex:0 0 100px; margin-bottom:8px">Join</button>
+        </div>
+        <div id="joinError" class="error"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- game screen -->
+  <div id="gameScreen" class="hidden">
+    <div class="topbar">
+      <div>
+        <span class="pill code">Session <span id="sessionCode"></span></span>
+        <span class="pill"><span id="playerCount">0</span> player(s) connected</span>
+        <span class="pill" id="statusPill"><span id="statusText"></span></span>
+      </div>
+      <div>
+        <span class="pill" id="timerText"></span>
+        <button id="leaveBtn" class="btn-orange">Leave</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <aside class="panel">
+        <div class="panel-head green">Leaderboard</div>
+        <div class="panel-body">
+          <table class="board">
+            <thead>
+              <tr><th>#</th><th>Player</th><th class="num">Score</th></tr>
+            </thead>
+            <tbody id="playersBody"></tbody>
+          </table>
+        </div>
+      </aside>
+
+      <main class="panel">
+        <div class="panel-head orange">Live game chat</div>
+        <div id="questionBox" class="hidden"></div>
+        <div id="messages"></div>
+
+        <div id="masterPanel" class="hidden">
+          <div class="mp-head">
+            <strong>Game master panel</strong>
+            <span id="masterNote"></span>
+          </div>
+          <div class="mp-grid">
+            <input id="questionInput" maxlength="200" placeholder="Question" autocomplete="off" />
+            <input id="answerInput" maxlength="100" placeholder="Answer" autocomplete="off" />
+            <button id="saveBtn" class="btn-orange">Save question</button>
+            <button id="startBtn" class="btn-green" disabled>Start game</button>
+          </div>
+        </div>
+
+        <div id="infoText"></div>
+        <form id="chatForm">
+          <input id="chatInput" maxlength="300" placeholder="Type a message..." autocomplete="off" />
+          <button type="submit" class="btn-blue">Send</button>
+        </form>
+      </main>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    let state = null;      // latest session info from the server
+    let attemptsLeft = 0;  // my attempts in this round
+    let timerId = null;
+
+    // each game master gets their own card in the chat
+    let currentRound = null;
+    let roundCount = 0;
+    let roundClosed = false;
+    let lastMasterId = null;
+
+    // blue, orange and green shades for player names
+    const PALETTE = ['#1c7ed6', '#f76707', '#2f9e44', '#1098ad', '#e8590c', '#37b24d', '#4263eb', '#f08c00', '#0b7285', '#5c940d'];
+    const colors = new Map();
+    function colorFor(id) {
+      if (!colors.has(id)) colors.set(id, PALETTE[colors.size % PALETTE.length]);
+      return colors.get(id);
+    }
+
+    const $ = (id) => document.getElementById(id);
+
+    function startRound(masterName) {
+      roundCount++;
+      const box = document.createElement('section');
+      box.className = 'round c' + (roundCount % 3);
+      const head = document.createElement('div');
+      head.className = 'round-head';
+      const body = document.createElement('div');
+      body.className = 'round-body';
+      box.append(head, body);
+      $('messages').appendChild(box);
+      currentRound = { head, body, named: false };
+      roundClosed = false;
+      if (masterName) nameRound(masterName);
+      else head.textContent = 'New game master';
+    }
+
+    function nameRound(name) {
+      currentRound.head.textContent = 'Game master: ' + name;
+      currentRound.named = true;
+    }
+
+    function addMessage(m) {
+      if (!currentRound || roundClosed) startRound(null);
+
+      const wrap = document.createElement('div');
+
+      if (m.kind === 'result') {
+        wrap.className = 'result ' + (m.win ? 'win' : 'timeout');
+        wrap.textContent = m.text;
+      } else if (m.system) {
+        wrap.className = 'sys';
+        const pill = document.createElement('span');
+        pill.textContent = m.text;
+        wrap.appendChild(pill);
+      } else {
+        const fromMaster = state && m.fromId === state.masterId;
+        const mine = m.fromId === socket.id;
+        wrap.className = 'msg ' + (mine ? 'mine' : 'other') + (fromMaster ? ' gm' : '') + (m.guess ? ' guess' : '');
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const name = document.createElement('strong');
+        name.textContent = m.from + (mine ? ' (you)' : '');
+        name.style.color = colorFor(m.fromId);
+        meta.appendChild(name);
+        if (fromMaster) {
+          const tag = document.createElement('span');
+          tag.className = 'tag gm';
+          tag.textContent = 'GAME MASTER';
+          meta.appendChild(tag);
+        }
+        if (m.guess) {
+          const tag = document.createElement('span');
+          tag.className = 'tag guess';
+          tag.textContent = 'GUESS';
+          meta.appendChild(tag);
+        }
+
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = m.text; // textContent, so typed text can never be run as HTML
+
+        wrap.append(meta, bubble);
+      }
+
+      currentRound.body.appendChild(wrap);
+      $('messages').scrollTop = $('messages').scrollHeight;
+    }
+
+    function startCountdown(seconds) {
+      stopCountdown();
+      let left = seconds;
+      showTime(left);
+      timerId = setInterval(() => {
+        left--;
+        if (left <= 0) { stopCountdown(); return; }
+        showTime(left);
+      }, 1000);
+    }
+
+    function showTime(left) {
+      $('timerText').textContent = `Time left: ${left}s`;
+      $('timerText').classList.toggle('urgent', left <= 10);
+    }
+
+    function stopCountdown() {
+      clearInterval(timerId);
+      timerId = null;
+      $('timerText').textContent = '';
+      $('timerText').classList.remove('urgent');
+    }
+
+    function resetToJoinScreen() {
+      stopCountdown();
+      state = null;
+      currentRound = null;
+      roundClosed = false;
+      lastMasterId = null;
+      roundCount = 0;
+      colors.clear();
+      $('messages').replaceChildren();
+      $('gameScreen').classList.add('hidden');
+      $('joinScreen').classList.remove('hidden');
+    }
+
+    function updateInfo() {
+      if (!state) return;
+      const isMaster = state.masterId === socket.id;
+      const master = state.players.find((p) => p.id === state.masterId);
+      let info = '';
+      if (state.status === 'lobby' && !isMaster) {
+        info = `Waiting for ${master ? master.name : 'the game master'} to set a question and start.`;
+      } else if (state.status === 'playing' && isMaster) {
+        info = 'You are the game master. Watch the guesses come in.';
+      } else if (state.status === 'playing') {
+        info = `Attempts left: ${attemptsLeft}`;
+      }
+      $('infoText').textContent = info;
+
+      const guessing = state.status === 'playing' && !isMaster;
+      $('chatInput').placeholder = guessing ? 'Type your guess and press Send...' : 'Type a message...';
+    }
+
+    function renderBoard(s) {
+      const body = $('playersBody');
+      body.replaceChildren();
+      const sorted = [...s.players].sort((a, b) => b.score - a.score);
+
+      sorted.forEach((p, i) => {
+        const tr = document.createElement('tr');
+        if (i === 0 && p.score > 0) tr.classList.add('first');
+        if (p.id === socket.id) tr.classList.add('me');
+
+        const rank = document.createElement('td');
+        rank.textContent = i + 1;
+
+        const nameCell = document.createElement('td');
+        const name = document.createElement('span');
+        name.className = 'pname';
+        name.textContent = p.name;
+        name.style.color = colorFor(p.id);
+        nameCell.appendChild(name);
+        if (p.id === s.masterId) {
+          const tag = document.createElement('span');
+          tag.className = 'tag gm';
+          tag.textContent = 'GM';
+          nameCell.appendChild(tag);
+        }
+        if (p.id === socket.id) {
+          const tag = document.createElement('span');
+          tag.className = 'tag you';
+          tag.textContent = 'YOU';
+          nameCell.appendChild(tag);
+        }
+
+        const scoreCell = document.createElement('td');
+        scoreCell.className = 'num';
+        const score = document.createElement('span');
+        score.className = 'pscore' + (i < 3 && p.score > 0 ? ' s' + (i + 1) : '');
+        score.textContent = p.score;
+        scoreCell.appendChild(score);
+
+        tr.append(rank, nameCell, scoreCell);
+        body.appendChild(tr);
+      });
+    }
+
+    // redraw the screen from what the server sent
+    function renderState(s) {
+      state = s;
+      const isMaster = s.masterId === socket.id;
+      const master = s.players.find((p) => p.id === s.masterId);
+      const masterName = master ? master.name : 'Unknown';
+
+      if (currentRound && !currentRound.named) {
+        nameRound(masterName);
+        lastMasterId = s.masterId;
+      } else if (s.masterId !== lastMasterId) {
+        startRound(masterName);
+        lastMasterId = s.masterId;
+      }
+
+      $('joinScreen').classList.add('hidden');
+      $('gameScreen').classList.remove('hidden');
+      $('sessionCode').textContent = s.code;
+      $('playerCount').textContent = s.players.length;
+      $('statusText').textContent = s.status === 'playing' ? 'Game in progress' : 'Waiting in lobby';
+      $('statusPill').className = 'pill ' + (s.status === 'playing' ? 'status-playing' : 'status-lobby');
+
+      renderBoard(s);
+
+      if (s.status === 'playing') {
+        $('questionBox').replaceChildren();
+        const label = document.createElement('small');
+        label.textContent = 'QUESTION';
+        $('questionBox').append(label, document.createTextNode(s.question));
+        $('questionBox').classList.remove('hidden');
+      } else {
+        $('questionBox').classList.add('hidden');
+      }
+
+      const showPanel = isMaster && s.status === 'lobby';
+      $('masterPanel').classList.toggle('hidden', !showPanel);
+      $('startBtn').disabled = !(s.hasQuestion && s.players.length >= s.minPlayers);
+      $('masterNote').textContent =
+        `Players: ${s.players.length} (at least ${s.minPlayers} needed). ` +
+        (s.hasQuestion ? 'Question saved.' : 'Save a question first.');
+
+      updateInfo();
+    }
+
+    function handleJoinAck(res) {
+      $('joinError').textContent = res.ok ? '' : res.error;
+    }
+
+    $('createBtn').addEventListener('click', () => {
+      const name = $('nameInput').value.trim();
+      if (!name) { $('joinError').textContent = 'Enter your name first.'; return; }
+      socket.emit('session:create', { name }, handleJoinAck);
+    });
+
+    $('joinBtn').addEventListener('click', () => {
+      const name = $('nameInput').value.trim();
+      const code = $('codeInput').value.trim().toUpperCase();
+      if (!name) { $('joinError').textContent = 'Enter your name first.'; return; }
+      if (code.length !== 5) { $('joinError').textContent = 'The session code has 5 characters.'; return; }
+      socket.emit('session:join', { name, code }, handleJoinAck);
+    });
+
+    $('saveBtn').addEventListener('click', () => {
+      const question = $('questionInput').value.trim();
+      const answer = $('answerInput').value.trim();
+      if (question.length < 3 || !answer) {
+        addMessage({ system: true, text: 'Type a question (at least 3 characters) and an answer.' });
+        return;
+      }
+      socket.emit('game:setQuestion', { question, answer }, (res) => {
+        if (!res.ok) addMessage({ system: true, text: res.error });
+        else { $('questionInput').value = ''; $('answerInput').value = ''; }
+      });
+    });
+
+    $('startBtn').addEventListener('click', () => {
+      socket.emit('game:start', {}, (res) => {
+        if (!res.ok) addMessage({ system: true, text: res.error });
+      });
+    });
+
+    $('leaveBtn').addEventListener('click', () => {
+      socket.emit('session:leave', {}, () => resetToJoinScreen());
+    });
+
+    // the same box is used for chat and for guesses
+    $('chatForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = $('chatInput').value.trim();
+      if (!text || !state) return;
+      $('chatInput').value = '';
+
+      const guessing = state.status === 'playing' && state.masterId !== socket.id;
+      if (guessing) {
+        socket.emit('game:guess', { text }, (res) => {
+          if (!res.ok) addMessage({ system: true, text: res.error });
+          else if (!res.correct) { attemptsLeft = res.attemptsLeft; updateInfo(); }
+        });
+      } else {
+        socket.emit('chat:send', { text }, (res) => {
+          if (!res.ok) addMessage({ system: true, text: res.error });
+        });
+      }
+    });
+
+    socket.on('state', renderState);
+    socket.on('message', addMessage);
+
+    socket.on('started', (data) => {
+      attemptsLeft = data.attempts;
+      startCountdown(data.seconds);
+      updateInfo();
+    });
+
+    socket.on('result', (r) => {
+      stopCountdown();
+      let text;
+      if (r.winnerId === socket.id) {
+        text = `You have won! The answer was "${r.answer}". You get +${r.points} points.`;
+      } else if (r.winnerId) {
+        text = `${r.winnerName} won. The answer was "${r.answer}".`;
+      } else {
+        text = `${r.note || 'Time is up. No winner this round.'} The answer was "${r.answer}".`;
+      }
+      addMessage({ system: true, kind: 'result', win: Boolean(r.winnerId), text });
+      roundClosed = true; // the next message starts a new game master card
+    });
+
+    socket.on('disconnect', () => {
+      resetToJoinScreen();
+      $('joinError').textContent = 'You were disconnected. Start or join a session again.';
+    });
+  </script>
+</body>
+</html>
